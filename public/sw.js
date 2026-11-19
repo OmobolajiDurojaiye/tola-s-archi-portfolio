@@ -1,7 +1,8 @@
-const CACHE_NAME = 'omotola-arch-v2';
+const CACHE_NAME = 'omotola-arch-v3';
 const SHELL_ASSETS = [
   '/',
   '/index.html',
+  '/fonts/bricolage-var.woff2',
   '/art/hero-poster.avif',
   '/art/hero-poster.webp',
   '/art/studio-desk.avif',

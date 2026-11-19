@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { Play } from '@phosphor-icons/react/dist/csr/Play';
 import { Pause } from '@phosphor-icons/react/dist/csr/Pause';
 import { SpeakerHigh } from '@phosphor-icons/react/dist/csr/SpeakerHigh';
@@ -25,6 +25,11 @@ function formatTime(sec: number) {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
 }
 
+/**
+ * Architectural Walkthrough Cinema Player:
+ * - Warm --tone-900 frame, zero blue
+ * - Hover scrub preview on poster before playing, then play with sound on click
+ */
 export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -40,6 +45,7 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hoverTime, setHoverTime] = useState<number | null>(null);
   const [hoverPercent, setHoverPercent] = useState(0);
+  const [scrubReady, setScrubReady] = useState(false);
 
   useEffect(() => {
     setIsPlaying(false);
@@ -47,6 +53,7 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
     setDuration(0);
     setBuffered(0);
     setShowControls(true);
+    setScrubReady(false);
     if (videoRef.current) {
       videoRef.current.pause();
       videoRef.current.load();
@@ -81,6 +88,24 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
       el.pause();
       setIsPlaying(false);
       setShowControls(true);
+    }
+  };
+
+  // Hover scrub preview on poster when paused
+  const handleStageHoverScrub = (e: React.PointerEvent<HTMLDivElement>) => {
+    scheduleHideControls();
+    const el = videoRef.current;
+    if (!el || isPlaying) return;
+    if (!scrubReady && el.preload === 'none') {
+      el.preload = 'metadata';
+      el.load();
+      setScrubReady(true);
+    }
+    if (el.duration > 0) {
+      const r = e.currentTarget.getBoundingClientRect();
+      const ratio = Math.max(0.02, Math.min(0.95, (e.clientX - r.left) / r.width));
+      el.currentTime = ratio * el.duration;
+      setCurrentTime(el.currentTime);
     }
   };
 
@@ -134,11 +159,10 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
 
   return (
     <div className="relative">
-      {/* Cobalt ambient playback aura */}
       <div
         aria-hidden="true"
         className={`absolute -inset-3 rounded-[36px] blur-2xl transition-opacity duration-700 pointer-events-none ${
-          isPlaying ? 'opacity-55' : 'opacity-20'
+          isPlaying ? 'opacity-55' : 'opacity-25'
         }`}
         style={{
           background: 'radial-gradient(circle at center, var(--tone-600), transparent 72%)',
@@ -147,29 +171,28 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
 
       <div
         ref={containerRef}
-        onMouseMove={scheduleHideControls}
+        onPointerMove={handleStageHoverScrub}
         onTouchStart={scheduleHideControls}
-        className="relative rounded-[28px] overflow-hidden bg-[var(--dark-surface)] shadow-[0_36px_90px_-28px_rgba(4,27,82,0.52)]"
+        className="relative rounded-[28px] overflow-hidden bg-[var(--tone-900)] shadow-[0_36px_90px_-28px_rgba(28,19,14,0.6)]"
       >
-        {/* Top HUD — plain text, zero borders/pills */}
-        <motion.div
+        <m.div
           initial={false}
           animate={{ opacity: showControls || !isPlaying ? 1 : 0, y: showControls || !isPlaying ? 0 : -10 }}
           transition={{ duration: 0.25 }}
-          className="absolute top-0 inset-x-0 z-20 px-5 py-4 bg-gradient-to-b from-[#0A0A0C]/85 to-transparent flex items-center justify-between text-xs text-[var(--light-ink)] pointer-events-none"
+          className="absolute top-0 inset-x-0 z-20 px-5 py-4 bg-gradient-to-b from-[#1C130E]/85 to-transparent flex items-center justify-between text-xs text-[var(--tone-100)] pointer-events-none"
         >
-          <span className="font-medium tracking-tight opacity-85">
+          <span className="font-medium opacity-85">
             {projectCode} · 3D Walkthrough
           </span>
           <span className="opacity-80 tabular-nums">
             {formatTime(currentTime)} / {formatTime(duration)}
           </span>
-        </motion.div>
+        </m.div>
 
-        {/* Video Element — preload="none" so zero video bytes load until interaction */}
         <div
           onClick={togglePlay}
-          className="relative w-full aspect-video bg-[var(--dark-surface)] cursor-pointer flex items-center justify-center"
+          data-cursor="view"
+          className="relative w-full aspect-video bg-[var(--tone-900)] cursor-pointer flex items-center justify-center"
         >
           <video
             ref={videoRef}
@@ -194,31 +217,34 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
 
           <AnimatePresence>
             {!isPlaying && (
-              <motion.button
+              <m.button
                 type="button"
                 aria-label="Play walkthrough film"
                 initial={{ scale: 0.85, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 1.12, opacity: 0 }}
-                transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+                transition={{ type: 'spring', stiffness: 170, damping: 22 }}
                 onClick={(e) => {
                   e.stopPropagation();
                   togglePlay();
                 }}
-                className="gel-cobalt absolute z-20 w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition cursor-pointer"
+                data-cursor="button"
+                className="absolute z-20 w-16 h-16 sm:w-20 sm:h-20 rounded-full bg-[var(--tone-600)] text-[var(--tone-50)] flex items-center justify-center hover:scale-105 active:scale-95 transition cursor-pointer"
+                style={{
+                  boxShadow: '0 6px 0 0 var(--tone-800), 0 22px 44px -10px rgba(0,0,0,0.65), inset 0 1px 0 rgba(255,255,255,0.22)',
+                }}
               >
                 <Play weight="light" className="w-7 h-7 sm:w-8 sm:h-8 ml-1" />
-              </motion.button>
+              </m.button>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Bottom Dock */}
-        <motion.div
+        <m.div
           initial={false}
           animate={{ opacity: showControls || !isPlaying ? 1 : 0, y: showControls || !isPlaying ? 0 : 14 }}
           transition={{ duration: 0.25 }}
-          className="absolute bottom-0 inset-x-0 z-20 px-4 sm:px-6 pb-4 pt-8 bg-gradient-to-t from-[#0A0A0C]/92 via-[#0A0A0C]/55 to-transparent"
+          className="absolute bottom-0 inset-x-0 z-20 px-4 sm:px-6 pb-4 pt-8 bg-gradient-to-t from-[#1C130E]/94 via-[#1C130E]/55 to-transparent"
         >
           <div
             role="slider"
@@ -235,12 +261,13 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
               setHoverTime(ratio * duration);
             }}
             onMouseLeave={() => setHoverTime(null)}
+            data-cursor="drag"
             className="relative h-5 flex items-center cursor-pointer group/scrub mb-2"
           >
             {hoverTime !== null && duration > 0 && (
               <div
                 style={{ left: `${hoverPercent}%` }}
-                className="absolute -top-7 -translate-x-1/2 px-2 py-0.5 rounded-md bg-[var(--light-ink)] text-[var(--ink)] text-[11px] font-medium tabular-nums pointer-events-none"
+                className="absolute -top-7 -translate-x-1/2 px-2 py-0.5 rounded-md bg-[var(--tone-100)] text-[var(--tone-900)] text-[11px] font-medium tabular-nums pointer-events-none"
               >
                 {formatTime(hoverTime)}
               </div>
@@ -256,16 +283,17 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
 
             <div
               style={{ left: `${progress}%` }}
-              className="absolute w-3.5 h-3.5 -translate-x-1/2 rounded-full bg-[var(--light-ink)] shadow-md pointer-events-none"
+              className="absolute w-3.5 h-3.5 -translate-x-1/2 rounded-full bg-[var(--tone-50)] shadow-md pointer-events-none"
             />
           </div>
 
-          <div className="flex items-center justify-between gap-2 text-[var(--light-ink)]">
+          <div className="flex items-center justify-between gap-2 text-[var(--tone-100)]">
             <div className="flex items-center gap-2">
               <button
                 type="button"
                 onClick={togglePlay}
                 aria-label={isPlaying ? 'Pause' : 'Play'}
+                data-cursor="button"
                 className="w-9 h-9 rounded-full bg-white/12 hover:bg-[var(--tone-600)] flex items-center justify-center transition cursor-pointer"
               >
                 {isPlaying ? <Pause weight="light" className="w-4 h-4" /> : <Play weight="light" className="w-4 h-4 ml-0.5" />}
@@ -275,6 +303,7 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
                 type="button"
                 onClick={() => stepSeconds(-5)}
                 aria-label="Rewind 5 seconds"
+                data-cursor="button"
                 className="w-8 h-8 rounded-full hover:bg-white/12 flex items-center justify-center transition cursor-pointer"
               >
                 <ArrowCounterClockwise weight="light" className="w-4 h-4" />
@@ -284,6 +313,7 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
                 type="button"
                 onClick={() => stepSeconds(5)}
                 aria-label="Forward 5 seconds"
+                data-cursor="button"
                 className="w-8 h-8 rounded-full hover:bg-white/12 flex items-center justify-center transition cursor-pointer"
               >
                 <ArrowClockwise weight="light" className="w-4 h-4" />
@@ -293,6 +323,7 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
                 type="button"
                 onClick={toggleMute}
                 aria-label={isMuted ? 'Unmute' : 'Mute'}
+                data-cursor="button"
                 className="w-8 h-8 rounded-full hover:bg-white/12 flex items-center justify-center transition cursor-pointer"
               >
                 {isMuted ? <SpeakerSlash weight="light" className="w-4 h-4" /> : <SpeakerHigh weight="light" className="w-4 h-4" />}
@@ -303,7 +334,8 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
               <button
                 type="button"
                 onClick={cycleSpeed}
-                className="text-xs font-medium text-[var(--light-ink)]/85 hover:text-[var(--tone-300)] transition cursor-pointer tabular-nums"
+                data-cursor="button"
+                className="text-xs font-medium text-[var(--tone-100)]/85 hover:text-[var(--tone-300)] transition cursor-pointer tabular-nums"
               >
                 {SPEEDS[speedIdx]}x
               </button>
@@ -312,13 +344,14 @@ export function CinemaVideoPlayer({ video, projectCode }: CinemaVideoPlayerProps
                 type="button"
                 onClick={toggleFullscreen}
                 aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+                data-cursor="button"
                 className="w-8 h-8 rounded-full hover:bg-white/12 flex items-center justify-center transition cursor-pointer"
               >
                 {isFullscreen ? <CornersIn weight="light" className="w-4 h-4" /> : <CornersOut weight="light" className="w-4 h-4" />}
               </button>
             </div>
           </div>
-        </motion.div>
+        </m.div>
       </div>
     </div>
   );

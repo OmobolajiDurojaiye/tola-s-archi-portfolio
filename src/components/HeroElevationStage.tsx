@@ -1,140 +1,167 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Sun } from '@phosphor-icons/react/dist/csr/Sun';
-import { Moon } from '@phosphor-icons/react/dist/csr/Moon';
-import { hapticTap, usePerfFlags } from '../lib/perf';
+import { getPerfFlags, whenIdle, observeInView } from '../lib/perf';
+import { skyColor, isDark } from '../lib/sun';
+import { SunArc } from './SunArc';
 
 const LazyHeroScene3D = lazy(() => import('./HeroScene3D'));
 
-function getSunLabel(val: number) {
-  if (val < 0.25) return 'Dawn';
-  if (val < 0.62) return 'Noon';
-  if (val < 0.84) return 'Blue Hour';
-  return 'Night';
+const LAYERS = [
+  { src: '/art/layer-rear.webp', z: -60 },
+  { src: '/art/layer-stone.webp', z: 0 },
+  { src: '/art/layer-roof.webp', z: 20 },
+  { src: '/art/layer-upper.webp', z: 70 },
+  { src: '/art/layer-tree.webp', z: 100 },
+];
+
+// Edge snap lines (fractions of the elevation box) for the drafting crosshair
+const SNAP_X = '0.15,0.343,0.376,0.405,0.424,0.482,0.54,0.574,0.733,0.79';
+const SNAP_Y = '0.215,0.247,0.341,0.482,0.544,0.58,0.79,0.84';
+
+function GhostCursor({ label, className }: { label: string; className: string }) {
+  return (
+    <div className={`ghost ${className}`} aria-hidden="true">
+      <svg width="16" height="18" viewBox="0 0 20 22" style={{ opacity: 0.55 }}>
+        <path d="M2 2 L17 10.2 L10.4 11.8 L7.2 18.6 Z" fill="var(--tone-500)" stroke="var(--tone-50)" strokeWidth="1.4" strokeLinejoin="round" />
+      </svg>
+      <span
+        className="nowrap ml-3 inline-block rounded-[9px] rounded-tl-[3px] px-2 py-0.5 text-[11px]"
+        style={{ background: 'var(--tone-400)', color: 'var(--tone-50)', opacity: 0.55, fontVariationSettings: '"wght" 540, "wdth" 92' }}
+      >
+        {label}
+      </span>
+    </div>
+  );
 }
 
 export function HeroElevationStage() {
-  const { liteMode, reducedMotion, isTouch } = usePerfFlags();
-  const [sunTime, setSunTime] = useState(0.38);
+  const flags = getPerfFlags();
+  const { liteMode, reducedMotion, isTouch, finePointer } = flags;
+  const [sunTime, setSunTime] = useState(0.4);
   const [shouldLoad3D, setShouldLoad3D] = useState(false);
   const [sceneReady, setSceneReady] = useState(false);
-  const [scrollProgress, setScrollProgress] = useState(0);
-  const [cssTilt, setCssTilt] = useState({ x: 0, y: 0 });
   const stageRef = useRef<HTMLDivElement>(null);
+  const ghostsRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef(0);
 
-  // Code-split 3D loads strictly AFTER first paint (never blocks LCP)
+  // Code-split 3D loads strictly after first paint + idle
   useEffect(() => {
     if (liteMode) return;
-    const trigger = () => setShouldLoad3D(true);
-    const w = window as Window & {
-      requestIdleCallback?: (cb: () => void, o?: { timeout: number }) => number;
-      cancelIdleCallback?: (id: number) => void;
-    };
-    if (typeof w.requestIdleCallback === 'function') {
-      const id = w.requestIdleCallback(trigger, { timeout: 900 });
-      return () => w.cancelIdleCallback?.(id);
-    }
-    const t = globalThis.setTimeout(trigger, 350);
-    return () => globalThis.clearTimeout(t);
+    return whenIdle(() => setShouldLoad3D(true), 900);
   }, [liteMode]);
 
-  // Scroll-driven camera progress (Interaction #3)
+  // Scroll progress for the 3D camera (read inside the scene's frame loop, no re-render)
   useEffect(() => {
     const onScroll = () => {
-      const p = Math.max(0, Math.min(1, window.scrollY / Math.max(380, window.innerHeight * 0.78)));
-      setScrollProgress(p);
+      scrollRef.current = Math.max(0, Math.min(1, window.scrollY / Math.max(420, window.innerHeight * 0.85)));
     };
+    onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // CSS-only parallax fallback for Lite Mode
-  const handleLiteMove = (e: React.PointerEvent<HTMLDivElement>) => {
-    if (!liteMode || isTouch || reducedMotion || !stageRef.current) return;
-    const rect = stageRef.current.getBoundingClientRect();
-    setCssTilt({
-      x: ((e.clientX - rect.left) / rect.width - 0.5) * 14,
-      y: ((e.clientY - rect.top) / rect.height - 0.5) * 8,
-    });
+  // Pause ghosts offscreen
+  useEffect(() => {
+    const el = ghostsRef.current;
+    if (!el) return;
+    return observeInView(el, (v) => el.setAttribute('data-live', v ? '1' : '0'), '0px', 0);
+  }, []);
+
+  // CSS 3D parallax for poster / lite planes (transform-only)
+  const onMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (reducedMotion || !stageRef.current || (sceneReady && !liteMode)) return;
+    const r = stageRef.current.getBoundingClientRect();
+    stageRef.current.style.setProperty('--tx', (((e.clientX - r.left) / r.width - 0.5) * 2).toFixed(3));
+    stageRef.current.style.setProperty('--ty', (((e.clientY - r.top) / r.height - 0.5) * 2).toFixed(3));
+  };
+  const onLeave = () => {
+    stageRef.current?.style.setProperty('--tx', '0');
+    stageRef.current?.style.setProperty('--ty', '0');
   };
 
-  const isNight = sunTime > 0.72;
+  const dark = isDark(sunTime);
+  const sky = skyColor(sunTime);
+  const showPoster = liteMode || !sceneReady;
 
   return (
-    <div
-      ref={stageRef}
-      onPointerMove={handleLiteMove}
-      onPointerLeave={() => setCssTilt({ x: 0, y: 0 })}
-      className="relative w-full max-w-6xl mx-auto select-none"
-    >
-      {/* Freestanding 3D Elevation Stage — NO container, NO card, NO borders */}
+    <div className="relative w-full select-none">
       <div
-        className="relative w-full h-[330px] sm:h-[480px] lg:h-[560px] transition-colors duration-700"
-        style={{
-          filter: liteMode
-            ? `brightness(${isNight ? 0.78 : 1}) contrast(${isNight ? 1.08 : 1})`
-            : undefined,
-        }}
+        ref={stageRef}
+        onPointerMove={onMove}
+        onPointerLeave={onLeave}
+        className="hero-stage relative w-full"
+        style={{ ['--grain-o' as string]: dark ? 0.6 : 0.36 }}
+        data-cursor="crosshair"
+        data-box="[data-elev]"
+        data-snap-x={SNAP_X}
+        data-snap-y={SNAP_Y}
+        data-dim-w="19.6"
+        data-dim-h="11.4"
+        data-origin-x="0.15"
+        data-origin-y="0.84"
       >
-        {/* Instant First-Paint Static AVIF/WebP Poster (also serves as Lite Mode with CSS parallax) */}
+        {/* Sky tone that responds to the sun (single warm hue family) */}
         <div
-          className={`absolute inset-0 flex items-center justify-center transition-opacity duration-700 ${
-            sceneReady && !liteMode ? 'opacity-0 pointer-events-none' : 'opacity-100'
-          }`}
+          aria-hidden="true"
+          className="absolute -inset-x-[10%] -inset-y-[8%] pointer-events-none"
+          style={{
+            background: `radial-gradient(ellipse 58% 62% at 50% 52%, ${sky} 0%, ${sky} 38%, transparent 72%)`,
+            transition: 'background 500ms ease',
+          }}
+        />
+
+        {/* Instant first paint + lite mode: CSS 3D layered planes with real depth */}
+        <div
+          className={`absolute inset-0 lite-stage transition-opacity duration-700 ${showPoster ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+          aria-hidden={!showPoster}
         >
-          {/* Soft circular spotlight ground shadow (Ref A & Ref C) */}
           <div
             aria-hidden="true"
-            className="absolute bottom-[10%] w-[78%] max-w-[680px] h-[90px] sm:h-[130px] rounded-full blur-2xl transition-colors duration-700"
-            style={{
-              background: isNight
-                ? 'radial-gradient(ellipse at center, rgba(11,79,219,0.28) 0%, transparent 72%)'
-                : 'radial-gradient(ellipse at center, rgba(6,44,128,0.16) 0%, transparent 72%)',
-            }}
+            className="absolute left-1/2 bottom-[4%] -translate-x-1/2 w-[80%] h-[18%] rounded-[50%] blur-2xl"
+            style={{ background: dark ? 'rgba(0,0,0,0.5)' : 'color-mix(in srgb, var(--tone-700) 28%, transparent)' }}
           />
-
-          {/* Depth-interlocked giant headline in Lite / Pre-3D state */}
-          <span
-            aria-hidden="true"
-            style={{
-              transform: `translate3d(${cssTilt.x * -0.45}px, ${cssTilt.y * -0.35}px, 0)`,
-              transition: 'transform 0.4s cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
-            className="absolute z-10 font-bold tracking-[-0.04em] leading-none text-[clamp(3.6rem,13.5vw,10.5rem)] text-[var(--tone-600)] opacity-90 pointer-events-none"
-          >
-            Architecture
-          </span>
-
-          {/* Floating cutout building poster */}
-          <picture
-            style={{
-              transform: `translate3d(${cssTilt.x}px, ${cssTilt.y}px, 0)`,
-              transition: 'transform 0.35s cubic-bezier(0.22, 1, 0.36, 1)',
-            }}
-            className="relative z-20 w-[94%] max-w-[820px] h-auto block"
-          >
-            <source srcSet="/art/hero-cutout.webp" type="image/webp" />
-            <img
-              src="/art/hero-poster.webp"
-              alt="Contemporary architectural front elevation floating on circular ground plane"
-              width={1200}
-              height={675}
-              fetchPriority="high"
-              className="w-full h-auto object-contain drop-shadow-[0_28px_36px_rgba(4,27,82,0.22)]"
-            />
-          </picture>
+          <div className="elev-box" data-elev>
+           <div className="elev-sway">
+            {LAYERS.map((l, i) => (
+              <div key={l.src} className="lite-plane" style={{ ['--z' as string]: l.z, zIndex: i < 3 ? i + 1 : i + 2 }}>
+                <img
+                  src={l.src}
+                  alt={i === 0 ? 'Contemporary residential front elevation' : ''}
+                  width={960}
+                  height={537}
+                  fetchPriority={i === 0 ? 'high' : 'auto'}
+                  decoding="async"
+                  className="w-full h-full object-contain"
+                  style={{ filter: dark ? 'brightness(0.62) saturate(0.9)' : sunTime > 0.55 ? 'sepia(0.15) saturate(1.08)' : undefined, transition: 'filter 500ms ease' }}
+                />
+              </div>
+            ))}
+            {/* Ref B interlock: headline between rear planes and foreground planes */}
+            <div className="lite-plane flex items-center justify-center pointer-events-none" style={{ ['--z' as string]: 40, zIndex: 4 }}>
+              <span
+                className="elev-word nowrap leading-none"
+                style={{
+                  letterSpacing: '-0.045em',
+                  fontVariationSettings: '"wght" 760, "wdth" 82',
+                  color: dark ? 'var(--tone-200)' : 'var(--tone-600)',
+                  transform: 'translateY(-14%)',
+                  transition: 'color 500ms ease',
+                }}
+              >
+                Architecture
+              </span>
+            </div>
+           </div>
+          </div>
+          <div aria-hidden="true" className="scene-grain absolute inset-0" />
         </div>
 
-        {/* Deferred Code-Split Live 3D R3F Scene */}
+        {/* Deferred code-split live 3D scene */}
         {shouldLoad3D && !liteMode && (
           <Suspense fallback={null}>
-            <div
-              className={`absolute inset-0 transition-opacity duration-700 ${
-                sceneReady ? 'opacity-100' : 'opacity-0'
-              }`}
-            >
+            <div className={`absolute inset-0 transition-opacity duration-700 ${sceneReady ? 'opacity-100' : 'opacity-0'}`}>
               <LazyHeroScene3D
                 sunTime={sunTime}
-                scrollProgress={scrollProgress}
+                scrollRef={scrollRef}
                 isTouch={isTouch}
                 reducedMotion={reducedMotion}
                 onReady={() => setSceneReady(true)}
@@ -142,36 +169,19 @@ export function HeroElevationStage() {
             </div>
           </Suspense>
         )}
+
+        {/* Ambient "other visitor" cursors (desktop only, not lite) */}
+        {finePointer && !liteMode && !reducedMotion && (
+          <div ref={ghostsRef} className="ghosts absolute inset-0 z-20 pointer-events-none" data-live="1">
+            <GhostCursor label="Client" className="ghost-a" />
+            <GhostCursor label="Site Architect" className="ghost-b" />
+          </div>
+        )}
       </div>
 
-      {/* Signature Interaction #2: Borderless Glossy Time-of-Day Sun Scrubber */}
-      <div className="mt-2 sm:mt-3 flex flex-col items-center gap-2 px-4">
-        <div className="gel-surface rounded-full px-5 py-2.5 flex items-center gap-3.5 w-full max-w-sm">
-          <Sun weight="light" className="w-4 h-4 text-[var(--tone-600)] shrink-0" />
-          <input
-            type="range"
-            min={0}
-            max={1}
-            step={0.01}
-            value={sunTime}
-            aria-label="Time of day sunlight position"
-            onChange={(e) => {
-              setSunTime(parseFloat(e.target.value));
-            }}
-            onPointerUp={() => hapticTap(6)}
-            className="sun-slider flex-1"
-          />
-          <Moon weight="light" className="w-4 h-4 text-[var(--tone-800)] shrink-0" />
-          <span className="text-xs font-medium text-[var(--ink)] w-16 text-right">
-            {getSunLabel(sunTime)}
-          </span>
-        </div>
-
-        <p className="text-[11px] text-[var(--ink-muted)] tracking-tight">
-          {liteMode
-            ? 'Lite mode active for slow connection · Drag sun slider to shift tone'
-            : 'Drag building to orbit · Scrub sun to shift shadows & glazing glow'}
-        </p>
+      {/* Time-of-day control */}
+      <div className="relative z-30 -mt-4 sm:-mt-8 px-4">
+        <SunArc value={sunTime} onChange={setSunTime} />
       </div>
     </div>
   );

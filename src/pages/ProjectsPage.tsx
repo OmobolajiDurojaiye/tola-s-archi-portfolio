@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { m, AnimatePresence } from 'framer-motion';
 import { ArrowLeft } from '@phosphor-icons/react/dist/csr/ArrowLeft';
 import { ArrowRight } from '@phosphor-icons/react/dist/csr/ArrowRight';
 import { Play } from '@phosphor-icons/react/dist/csr/Play';
@@ -9,7 +9,9 @@ import { CinemaVideoPlayer } from '../components/CinemaVideoPlayer';
 import { CoverflowGallery } from '../components/CoverflowGallery';
 import { StudioFooter } from '../components/StudioFooter';
 import { OptimizedImage } from '../components/OptimizedImage';
-import { InteractiveHeadline } from '../components/InteractiveHeadline';
+import { SplitHeadline } from '../components/SplitHeadline';
+import { Card3D } from '../components/Card3D';
+import { variantForCategory } from '../components/CardBackground';
 import { hapticTap } from '../lib/perf';
 
 export function ProjectsPage() {
@@ -33,18 +35,27 @@ export function ProjectsPage() {
       : PROJECTS.filter((p) => p.category === categoryFilter);
 
   useEffect(() => {
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (window.__lenis) window.__lenis.scrollTo(0, { immediate: true });
+    else window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [activeProject.slug]);
 
+  const setUnderlineOrigin = (e: React.PointerEvent<HTMLElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    e.currentTarget.style.setProperty('--ux', `${((e.clientX - r.left) / r.width) * 100}%`);
+  };
+
   return (
-    <div className="min-h-screen bg-[var(--surface)] text-[var(--ink)]">
-      <main className="pt-26 sm:pt-32 pb-12 px-4 sm:px-8 max-w-6xl mx-auto">
-        {/* Top Navigation & Text-Only Filter Row (ZERO pills, ZERO borders) */}
+    <div className="page-enter min-h-screen bg-[var(--surface)] text-[var(--ink)]">
+      <main className="pt-24 sm:pt-30 pb-12 px-4 sm:px-8 max-w-6xl mx-auto">
+        {/* Top Navigation & Text-Only Filter Row */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
           <Link
             to="/"
+            viewTransition
+            onPointerEnter={setUnderlineOrigin}
             onClick={() => hapticTap(6)}
-            className="inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--tone-600)] transition-colors"
+            data-cursor="link"
+            className="link-draw inline-flex items-center gap-2 text-xs sm:text-sm font-medium text-[var(--ink-muted)] hover:text-[var(--tone-600)] transition-colors w-fit"
           >
             <ArrowLeft weight="light" className="w-4 h-4" />
             <span>Back to Home</span>
@@ -57,15 +68,20 @@ export function ProjectsPage() {
                 <button
                   key={cat}
                   type="button"
+                  onPointerEnter={setUnderlineOrigin}
                   onClick={() => {
                     hapticTap(6);
                     setCategoryFilter(cat);
                   }}
-                  className={`shrink-0 text-xs sm:text-sm tracking-tight transition-all cursor-pointer ${
+                  data-cursor="link"
+                  className={`link-draw shrink-0 nowrap text-xs sm:text-sm transition-all cursor-pointer ${
                     active
-                      ? 'font-bold text-[var(--tone-600)] opacity-100'
-                      : 'font-normal text-[var(--ink)] opacity-45 hover:opacity-85'
+                      ? 'text-[var(--tone-600)] opacity-100'
+                      : 'text-[var(--tone-900)] opacity-45 hover:opacity-85'
                   }`}
+                  style={{
+                    fontVariationSettings: active ? '"wght" 660, "wdth" 92' : '"wght" 450, "wdth" 100',
+                  }}
                 >
                   {cat}
                 </button>
@@ -74,10 +90,10 @@ export function ProjectsPage() {
           </div>
         </div>
 
-        {/* Borderless Glossy Horizontal Project Switcher Rail */}
-        <div className="mb-10">
+        {/* Horizontal Project Switcher Rail */}
+        <div className="mb-10" data-cursor="drag">
           <div className="flex items-stretch gap-3 overflow-x-auto snap-x snap-mandatory py-2">
-            {railProjects.map((project) => {
+            {railProjects.map((project, idx) => {
               const isSelected = project.slug === activeProject.slug;
               return (
                 <button
@@ -85,24 +101,26 @@ export function ProjectsPage() {
                   type="button"
                   onClick={() => {
                     hapticTap(6);
-                    navigate(`/projects/${project.slug}`);
+                    navigate(`/projects/${project.slug}`, { viewTransition: true });
                   }}
-                  data-cursor="pointer"
-                  className={`snap-start shrink-0 w-[190px] sm:w-[215px] rounded-[22px] p-2.5 text-left transition-all cursor-pointer ${
+                  data-cursor="button"
+                  className={`snap-start shrink-0 w-[195px] sm:w-[218px] rounded-[22px] p-2.5 text-left transition-all cursor-pointer ${
                     isSelected
-                      ? 'gel-cobalt scale-[1.02]'
-                      : 'gel-surface text-[var(--ink)] hover:scale-[1.01]'
+                      ? 'card card-900 scale-[1.02]'
+                      : idx % 2 === 0
+                        ? 'card card-100 hover:scale-[1.01]'
+                        : 'card card-50 hover:scale-[1.01]'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="relative w-12 h-12 rounded-[14px] overflow-hidden shrink-0 bg-[var(--surface-recessed)]">
+                    <div className="relative w-12 h-12 rounded-[14px] overflow-hidden shrink-0 bg-[var(--tone-200)]">
                       <OptimizedImage
                         image={project.cover}
                         sizes="64px"
                         className="w-full h-full object-cover"
                       />
                       {project.video && (
-                        <span className="absolute inset-0 bg-[#0A0A0C]/45 flex items-center justify-center text-[var(--light-ink)]">
+                        <span className="absolute inset-0 bg-[#1C130E]/45 flex items-center justify-center text-[var(--tone-50)]">
                           <Play weight="light" className="w-3.5 h-3.5" />
                         </span>
                       )}
@@ -110,12 +128,12 @@ export function ProjectsPage() {
                     <div className="min-w-0 flex-1">
                       <span
                         className={`block text-[11px] font-medium ${
-                          isSelected ? 'text-[var(--light-ink)]/80' : 'text-[var(--tone-600)]'
+                          isSelected ? 'text-[var(--tone-300)]' : 'text-[var(--tone-600)]'
                         }`}
                       >
                         {project.code} · {project.images.length}p
                       </span>
-                      <span className="block text-xs sm:text-sm font-bold tracking-tight truncate mt-0.5">
+                      <span className="block text-xs sm:text-sm font-semibold truncate mt-0.5">
                         {project.shortTitle}
                       </span>
                     </div>
@@ -126,63 +144,72 @@ export function ProjectsPage() {
           </div>
         </div>
 
-        {/* Active Project Presentation — 3D camera-dolly spring transition */}
+        {/* Active Project Presentation */}
         <AnimatePresence mode="wait">
-          <motion.article
+          <m.article
             key={activeProject.slug}
-            initial={{ opacity: 0, scale: 0.96, y: 20 }}
+            initial={{ opacity: 0, scale: 0.97, y: 18 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 1.03, y: -14 }}
-            transition={{ type: 'spring', stiffness: 240, damping: 26 }}
+            exit={{ opacity: 0, scale: 1.02, y: -12 }}
+            transition={{ type: 'spring', stiffness: 170, damping: 22 }}
             className="space-y-10 sm:space-y-14"
           >
-            {/* Borderless Glossy Title Surface */}
-            <header className="gel-surface rounded-[32px] p-6 sm:p-10">
+            {/* Project Info Card with Variant A ("pixels") & category-matched nuance */}
+            <Card3D
+              tone="100"
+              variant={variantForCategory(activeProject.category)}
+              tilt={3}
+              contentClassName="p-6 sm:p-10"
+            >
               <div className="flex flex-col lg:flex-row lg:items-end justify-between gap-8">
                 <div className="space-y-3 max-w-2xl">
-                  <p className="text-xs sm:text-sm font-medium text-[var(--tone-600)]">
+                  <p className="t-label accent">
                     {activeProject.code} · {activeProject.category} · {activeProject.year}
                   </p>
 
-                  <InteractiveHeadline
+                  <SplitHeadline
                     text={activeProject.title}
                     as="h1"
-                    className="text-4xl sm:text-6xl font-bold tracking-[-0.035em] text-[var(--ink)] leading-[1.02]"
+                    className="t-display text-[var(--tone-900)]"
                   />
 
-                  <p className="text-sm sm:text-base text-[var(--ink-muted)] leading-relaxed">
+                  <p className="t-body muted">
                     {activeProject.summary}
                   </p>
 
-                  <p className="pt-1 text-xs font-medium text-[var(--ink)]/55">
+                  <p className="pt-1 text-xs font-medium muted">
                     {activeProject.tools.join(' · ')}
                   </p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:min-w-[270px]">
-                  {activeProject.specs.map((spec) => (
+                  {activeProject.specs.map((spec, idx) => (
                     <div
                       key={spec}
-                      className="rounded-[20px] bg-[var(--surface)]/80 px-4 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]"
+                      className={`rounded-[20px] px-4 py-3 ${
+                        idx === 3
+                          ? 'bg-[var(--tone-900)] text-[var(--tone-100)]'
+                          : 'bg-[var(--tone-50)] text-[var(--tone-900)] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]'
+                      }`}
                     >
-                      <span className="block text-xs font-bold tracking-tight text-[var(--ink)]">
+                      <span className="block text-xs font-semibold">
                         {spec}
                       </span>
                     </div>
                   ))}
                 </div>
               </div>
-            </header>
+            </Card3D>
 
-            {/* 3D Walkthrough Film Player (when available) */}
+            {/* 3D Walkthrough Film Player */}
             {activeProject.video && (
               <section className="space-y-3">
                 <div className="flex items-center justify-between px-1">
-                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--tone-600)]">
-                    3D Walkthrough Film
+                  <p className="t-label text-[var(--tone-600)]">
+                    3D walkthrough film
                   </p>
                   <p className="text-xs text-[var(--ink-muted)]">
-                    Tap to stream · Speed control for rapid review
+                    Hover to scrub preview · Click to play
                   </p>
                 </div>
                 <CinemaVideoPlayer
@@ -192,14 +219,14 @@ export function ProjectsPage() {
               </section>
             )}
 
-            {/* Interaction #5: 3D Coverflow Plate Carousel + Shared-Element Lightbox */}
+            {/* 3D Coverflow Plate Carousel */}
             <section className="space-y-4">
               <div className="flex items-center justify-between px-1">
-                <p className="text-xs font-medium uppercase tracking-[0.16em] text-[var(--tone-600)]">
-                  3D Coverflow Archive · {activeProject.images.length} Plates
+                <p className="t-label text-[var(--tone-600)]">
+                  3D coverflow archive · {activeProject.images.length} plates
                 </p>
                 <p className="text-xs text-[var(--ink-muted)]">
-                  Drag, swipe, or use arrow keys
+                  Drag with momentum, swipe, or use arrow keys
                 </p>
               </div>
 
@@ -210,50 +237,66 @@ export function ProjectsPage() {
               />
             </section>
 
-            {/* Previous / Next Project Navigation */}
+            {/* Previous / Next Project Cards with Variant B ("arc") and tonal contrast */}
             <nav
               aria-label="Project pagination"
               className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4"
             >
               <Link
                 to={`/projects/${prevProject.slug}`}
+                viewTransition
                 onClick={() => hapticTap(6)}
-                className="gel-surface rounded-[28px] p-5 flex items-center gap-4 group hover:scale-[1.01] transition-transform"
+                className="block group"
               >
-                <ArrowLeft
-                  weight="light"
-                  className="w-6 h-6 text-[var(--ink-muted)] group-hover:text-[var(--tone-600)] shrink-0 transition-colors"
-                />
-                <div className="min-w-0">
-                  <span className="block text-xs font-medium text-[var(--tone-600)]">
-                    Previous · {prevProject.code}
-                  </span>
-                  <span className="block text-xl sm:text-2xl font-bold tracking-[-0.03em] text-[var(--ink)] truncate">
-                    {prevProject.title}
-                  </span>
-                </div>
+                <Card3D
+                  tone="100"
+                  variant="arc"
+                  cursor="view"
+                  contentClassName="p-5 sm:p-6 flex items-center gap-4"
+                >
+                  <ArrowLeft
+                    weight="light"
+                    className="w-6 h-6 muted group-hover:text-[var(--tone-600)] shrink-0 transition-transform duration-300 group-hover:-translate-x-1"
+                  />
+                  <div className="min-w-0">
+                    <span className="block t-label accent">
+                      Previous · {prevProject.code}
+                    </span>
+                    <span className="block t-h3 truncate mt-0.5">
+                      {prevProject.title}
+                    </span>
+                  </div>
+                </Card3D>
               </Link>
 
               <Link
                 to={`/projects/${nextProject.slug}`}
+                viewTransition
                 onClick={() => hapticTap(6)}
-                className="gel-surface rounded-[28px] p-5 flex items-center justify-between gap-4 group text-right hover:scale-[1.01] transition-transform"
+                className="block group text-right"
               >
-                <div className="min-w-0 flex-1">
-                  <span className="block text-xs font-medium text-[var(--tone-600)]">
-                    Next · {nextProject.code}
-                  </span>
-                  <span className="block text-xl sm:text-2xl font-bold tracking-[-0.03em] text-[var(--ink)] truncate">
-                    {nextProject.title}
-                  </span>
-                </div>
-                <ArrowRight
-                  weight="light"
-                  className="w-6 h-6 text-[var(--ink-muted)] group-hover:text-[var(--tone-600)] shrink-0 transition-colors"
-                />
+                <Card3D
+                  tone="900"
+                  variant="arc"
+                  cursor="view"
+                  contentClassName="p-5 sm:p-6 flex items-center justify-between gap-4"
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="block t-label accent">
+                      Next · {nextProject.code}
+                    </span>
+                    <span className="block t-h3 text-[var(--tone-100)] truncate mt-0.5">
+                      {nextProject.title}
+                    </span>
+                  </div>
+                  <ArrowRight
+                    weight="light"
+                    className="w-6 h-6 muted group-hover:text-[var(--tone-300)] shrink-0 transition-transform duration-300 group-hover:translate-x-1"
+                  />
+                </Card3D>
               </Link>
             </nav>
-          </motion.article>
+          </m.article>
         </AnimatePresence>
       </main>
 

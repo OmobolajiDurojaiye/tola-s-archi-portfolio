@@ -2,6 +2,9 @@ import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import './index.css';
 import App from './App';
+import { applyRootFlags } from './lib/perf';
+
+applyRootFlags();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -9,7 +12,6 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>
 );
 
-// Register service worker for offline/slow-connection caching after first visit
 if ('serviceWorker' in navigator && import.meta.env.PROD) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
