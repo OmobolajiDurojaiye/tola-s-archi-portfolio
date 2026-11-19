@@ -1,17 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  --bg-cream: #F7F3EC;
-  --surface-nude: #EADFD1;
-  --surface-nude-deep: #DFCBB5;
-  --accent-nude: #C6A88C;
-  --accent-champagne: #D8C3A8;
-  --ink-black: #0E0D0C;
-  --ink-charcoal: #272420;
-  --ink-muted: #6C635A;
+  /* Strict Monotone Cobalt Token System + Neutrals Only */
+  --tone-100: #E8F0FE;
+  --tone-200: #C8DBFC;
+  --tone-300: #93B8FA;
+  --tone-400: #558DF6;
+  --tone-500: #1D64EC;
+  --tone-600: #0B4FDB;
+  --tone-700: #083DB0;
+  --tone-800: #062C80;
+  --tone-900: #041B52;
+
+  --surface: #F2EFE9;
+  --surface-elevated: #F8F6F1;
+  --surface-recessed: #E7E3DC;
+  --ink: #0A0A0C;
+  --ink-muted: rgba(10, 10, 12, 0.58);
+  --ink-subtle: rgba(10, 10, 12, 0.4);
+  --dark-surface: #0A0A0C;
+  --dark-elevated: #121318;
+  --light-ink: #F2EFE9;
 }
 
-/* Hide scrollbars everywhere (both horizontal and vertical) */
+/* Hide scrollbars everywhere */
 html,
 body,
 * {
@@ -29,109 +41,181 @@ body::-webkit-scrollbar,
 
 html {
   scroll-behavior: smooth;
-  background-color: var(--bg-cream);
-  color: var(--ink-black);
+  background-color: var(--surface);
+  color: var(--ink);
   overflow-x: clip;
 }
 
 body {
-  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: var(--bg-cream);
-  color: var(--ink-black);
+  font-family: "Helvetica Neue", Helvetica, "Akzidenz-Grotesk", Arial, sans-serif;
+  background-color: var(--surface);
+  color: var(--ink);
   overflow-x: clip;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "kern" 1, "liga" 1;
 }
 
-.font-serif-display {
-  font-family: 'Cormorant Garamond', Georgia, serif;
+::selection {
+  background-color: var(--tone-600);
+  color: var(--light-ink);
 }
 
-.font-mono-arch {
-  font-family: 'JetBrains Mono', ui-monospace, monospace;
-}
-
-/* Glossy studio glass surfaces */
-.gloss-card {
+/* Glossy gel / glass surfaces: depth via layered shadow & inner light ONLY, ZERO borders */
+.gel-surface {
   background: linear-gradient(
-    145deg,
-    rgba(255, 253, 249, 0.88) 0%,
-    rgba(242, 233, 221, 0.72) 100%
+    155deg,
+    rgba(255, 255, 255, 0.78) 0%,
+    rgba(242, 239, 233, 0.62) 100%
   );
-  backdrop-filter: blur(18px) saturate(140%);
-  -webkit-backdrop-filter: blur(18px) saturate(140%);
-  border: 1px solid rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(22px) saturate(135%);
+  -webkit-backdrop-filter: blur(22px) saturate(135%);
   box-shadow:
-    0 18px 45px -20px rgba(14, 13, 12, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.9),
-    inset 0 -1px 0 rgba(198, 168, 140, 0.18);
+    0 24px 56px -22px rgba(6, 44, 128, 0.14),
+    0 8px 20px -10px rgba(10, 10, 12, 0.08),
+    inset 0 1px 1px rgba(255, 255, 255, 0.92),
+    inset 0 -10px 24px -16px rgba(11, 79, 219, 0.08);
 }
 
-.gloss-dark {
-  background: linear-gradient(
-    145deg,
-    rgba(28, 25, 22, 0.88) 0%,
-    rgba(14, 13, 12, 0.94) 100%
-  );
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  border: 1px solid rgba(216, 195, 168, 0.22);
-  box-shadow:
-    0 24px 60px -20px rgba(0, 0, 0, 0.55),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14);
-}
-
-.gloss-pill {
+.gel-nav {
   background: linear-gradient(
     180deg,
-    rgba(255, 254, 251, 0.92) 0%,
-    rgba(234, 223, 209, 0.78) 100%
+    rgba(248, 246, 241, 0.76) 0%,
+    rgba(242, 239, 233, 0.56) 100%
   );
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(24px) saturate(140%);
+  -webkit-backdrop-filter: blur(24px) saturate(140%);
   box-shadow:
-    0 8px 24px -10px rgba(14, 13, 12, 0.16),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+    0 18px 42px -18px rgba(6, 44, 128, 0.15),
+    inset 0 1px 0 rgba(255, 255, 255, 0.88);
 }
 
-.gloss-black-btn {
-  background: linear-gradient(180deg, #24211E 0%, #0E0D0C 100%);
-  border: 1px solid rgba(216, 195, 168, 0.28);
+.gel-cobalt {
+  background: linear-gradient(
+    160deg,
+    var(--tone-500) 0%,
+    var(--tone-600) 58%,
+    var(--tone-700) 100%
+  );
+  color: var(--light-ink);
   box-shadow:
-    0 14px 30px -12px rgba(14, 13, 12, 0.45),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
+    0 20px 44px -14px rgba(11, 79, 219, 0.45),
+    0 6px 14px -6px rgba(4, 27, 82, 0.28),
+    inset 0 1px 1px rgba(200, 219, 252, 0.45);
 }
 
-/* Subtle architectural drafting grid backdrop */
-.arch-grid-bg {
-  background-image:
-    linear-gradient(to right, rgba(14, 13, 12, 0.035) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(14, 13, 12, 0.035) 1px, transparent 1px);
-  background-size: 48px 48px;
+.gel-dark {
+  background: linear-gradient(
+    160deg,
+    rgba(20, 22, 30, 0.88) 0%,
+    rgba(10, 10, 12, 0.96) 100%
+  );
+  backdrop-filter: blur(22px);
+  -webkit-backdrop-filter: blur(22px);
+  box-shadow:
+    0 28px 64px -22px rgba(0, 0, 0, 0.65),
+    inset 0 1px 0 rgba(200, 219, 252, 0.16);
 }
 
-/* Gloss sheen sweep on hover */
-.gloss-sheen {
+/* 3D card depth & cursor-following specular gloss highlight */
+.card-3d {
   position: relative;
-  overflow: hidden;
+  transform-style: preserve-3d;
+  will-change: transform;
+  background: linear-gradient(
+    150deg,
+    rgba(255, 255, 255, 0.84) 0%,
+    rgba(238, 235, 229, 0.78) 100%
+  );
+  box-shadow:
+    0 26px 54px -24px rgba(6, 44, 128, 0.16),
+    0 10px 22px -12px rgba(10, 10, 12, 0.1),
+    0 3px 0 0 rgba(11, 79, 219, 0.06),
+    inset 0 1px 1px rgba(255, 255, 255, 0.95);
 }
 
-.gloss-sheen::after {
+.card-3d::before {
   content: '';
   position: absolute;
-  inset: -40% -80%;
-  background: linear-gradient(
-    115deg,
-    transparent 35%,
-    rgba(255, 255, 255, 0.35) 50%,
-    transparent 65%
-  );
-  transform: translateX(-100%);
-  transition: transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+  inset: 0;
+  border-radius: inherit;
   pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  background: radial-gradient(
+    360px circle at var(--mx, 50%) var(--my, 50%),
+    rgba(255, 255, 255, 0.55),
+    rgba(147, 184, 250, 0.12) 40%,
+    transparent 70%
+  );
+  z-index: 3;
 }
 
-.gloss-sheen:hover::after {
-  transform: translateX(100%);
+.card-3d:hover::before {
+  opacity: 1;
+}
+
+/* Tiny < 1KB inline SVG film grain overlay for 3D scenes only (never on text) */
+.scene-grain {
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 128 128' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.88' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.18'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 128px 128px;
+  mix-blend-mode: overlay;
+  opacity: 0.42;
+}
+
+/* Custom range slider for Time-of-Day sun scrubber (borderless, glossy) */
+input[type="range"].sun-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"].sun-slider::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--tone-200) 0%, var(--tone-600) 50%, var(--tone-900) 100%);
+}
+
+input[type="range"].sun-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
+  border-radius: 9999px;
+  background: var(--surface-elevated);
+  box-shadow:
+    0 4px 12px rgba(11, 79, 219, 0.42),
+    inset 0 0 0 4px var(--tone-600);
+  transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+input[type="range"].sun-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.14);
+}
+
+input[type="range"].sun-slider::-moz-range-track {
+  height: 6px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, var(--tone-200) 0%, var(--tone-600) 50%, var(--tone-900) 100%);
+}
+
+input[type="range"].sun-slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 9999px;
+  background: var(--surface-elevated);
+  box-shadow:
+    0 4px 12px rgba(11, 79, 219, 0.42),
+    inset 0 0 0 4px var(--tone-600);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
 }

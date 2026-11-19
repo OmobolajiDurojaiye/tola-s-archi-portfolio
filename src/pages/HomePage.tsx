@@ -1,160 +1,253 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { motion } from 'framer-motion';
-import {
-  ArrowUpRight,
-  FileDown,
-  Play,
-  Layers,
-  GraduationCap,
-  MapPin,
-  Sparkles,
-  CheckCircle2,
-  Compass,
-} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { ArrowUpRight } from '@phosphor-icons/react/dist/csr/ArrowUpRight';
+import { DownloadSimple } from '@phosphor-icons/react/dist/csr/DownloadSimple';
+import { Play } from '@phosphor-icons/react/dist/csr/Play';
+import { GraduationCap } from '@phosphor-icons/react/dist/csr/GraduationCap';
+import { MapPin } from '@phosphor-icons/react/dist/csr/MapPin';
+import { Check } from '@phosphor-icons/react/dist/csr/Check';
 import { PROFILE } from '../data/profile';
-import { PROJECTS, PROJECT_CATEGORIES, type ProjectCategory } from '../data/projects';
-import { HeroElevationAssembly } from '../components/HeroElevationAssembly';
+import type { ProjectCategory } from '../data/projects';
+import { PROJECT_SUMMARIES, PROJECT_CATEGORIES, type ProjectSummary } from '../data/projectsSummary';
+import { HeroElevationStage } from '../components/HeroElevationStage';
 import { FannedProjectDeck } from '../components/FannedProjectDeck';
 import { StudioFooter } from '../components/StudioFooter';
+import { InteractiveHeadline } from '../components/InteractiveHeadline';
+import { Magnetic } from '../components/MagneticButton';
+import { TiltCard3D } from '../components/TiltCard3D';
+import { OptimizedImage } from '../components/OptimizedImage';
+import { hapticTap, usePerfFlags } from '../lib/perf';
+
+/**
+ * Project card with 3D tilt, specular gloss sheen, and Interaction #8
+ * (inline muted walkthrough film on hover/tap with lightweight poster first).
+ */
+function ProjectArchiveCard({ project }: { project: ProjectSummary }) {
+  const { liteMode, isTouch } = usePerfFlags();
+  const [hoverPlay, setHoverPlay] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  const startInlinePreview = () => {
+    if (!project.video || liteMode) return;
+    setHoverPlay(true);
+    window.setTimeout(() => {
+      videoRef.current?.play().catch(() => {});
+    }, 40);
+  };
+
+  const stopInlinePreview = () => {
+    if (!project.video) return;
+    setHoverPlay(false);
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.currentTime = 0;
+    }
+  };
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.96, y: 14 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.94 }}
+      transition={{ type: 'spring', stiffness: 280, damping: 24 }}
+      onMouseEnter={!isTouch ? startInlinePreview : undefined}
+      onMouseLeave={!isTouch ? stopInlinePreview : undefined}
+      className="h-full"
+    >
+      <Link to={`/projects/${project.slug}`} className="block h-full group">
+        <TiltCard3D className="h-full p-3.5 flex flex-col">
+          <div className="relative aspect-[4/3] rounded-[20px] overflow-hidden bg-[var(--surface-recessed)]">
+            <OptimizedImage
+              image={project.cover}
+              className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+
+            {/* Inline muted walkthrough preview (only loads when hovered/tapped, never in Lite Mode) */}
+            {project.video && hoverPlay && !liteMode && (
+              <video
+                ref={videoRef}
+                src={project.video.src}
+                poster={project.video.poster}
+                muted
+                loop
+                playsInline
+                preload="none"
+                className="absolute inset-0 w-full h-full object-cover z-10"
+              />
+            )}
+
+            {project.video && (
+              <button
+                type="button"
+                aria-label="Preview 3D film inline"
+                onClick={(e) => {
+                  if (isTouch && !liteMode) {
+                    e.preventDefault();
+                    hapticTap(8);
+                    if (hoverPlay) stopInlinePreview();
+                    else startInlinePreview();
+                  }
+                }}
+                className="absolute bottom-3 right-3 z-20 w-9 h-9 rounded-full bg-[var(--tone-600)] text-[var(--light-ink)] flex items-center justify-center shadow-lg"
+              >
+                <Play weight="light" className="w-4 h-4 ml-0.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="pt-4 px-1.5 pb-1 flex-1 flex flex-col justify-between">
+            <div>
+              <div className="flex items-center justify-between gap-2 text-xs text-[var(--ink-muted)]">
+                <span className="font-medium text-[var(--tone-600)]">
+                  {project.code} · {project.category}
+                </span>
+                <span className="tabular-nums">{project.imageCount} plates</span>
+              </div>
+
+              <div className="mt-1.5 flex items-start justify-between gap-2">
+                <h3 className="text-xl sm:text-2xl font-bold tracking-[-0.03em] text-[var(--ink)] leading-snug group-hover:text-[var(--tone-600)] transition-colors">
+                  {project.title}
+                </h3>
+                <ArrowUpRight
+                  weight="light"
+                  className="w-5 h-5 text-[var(--ink-muted)] group-hover:text-[var(--tone-600)] shrink-0 mt-1 transition-colors"
+                />
+              </div>
+
+              <p className="mt-1.5 text-xs sm:text-sm text-[var(--ink-muted)] line-clamp-2 leading-relaxed">
+                {project.summary}
+              </p>
+            </div>
+
+            <p className="mt-4 text-xs font-medium text-[var(--ink)]/55 tracking-tight">
+              {project.tools.join(' · ')}
+            </p>
+          </div>
+        </TiltCard3D>
+      </Link>
+    </motion.div>
+  );
+}
 
 export function HomePage() {
   const [selectedCategory, setSelectedCategory] = useState<'All' | ProjectCategory>('All');
   const [activeSkill, setActiveSkill] = useState(0);
 
-  const highlightProjects = PROJECTS.filter((p) => p.highlight);
+  const highlightProjects = PROJECT_SUMMARIES.filter((p) => p.highlight);
   const filteredProjects =
     selectedCategory === 'All'
-      ? PROJECTS
-      : PROJECTS.filter((p) => p.category === selectedCategory);
+      ? PROJECT_SUMMARIES
+      : PROJECT_SUMMARIES.filter((p) => p.category === selectedCategory);
 
-  const totalPlates = PROJECTS.reduce((acc, p) => acc + p.images.length, 0);
-  const totalVideos = PROJECTS.filter((p) => p.video).length;
+  const totalPlates = PROJECT_SUMMARIES.reduce((acc, p) => acc + p.imageCount, 0);
+  const totalVideos = PROJECT_SUMMARIES.filter((p) => p.video).length;
 
   return (
-    <div className="min-h-screen bg-[#F7F3EC] text-[#0E0D0C] arch-grid-bg">
-      {/* HERO SECTION: Opening Architectural Piece-by-Piece Assembly */}
-      <section className="pt-22 sm:pt-28 pb-10 sm:pb-16 px-4 sm:px-6">
+    <div className="min-h-screen bg-[var(--surface)] text-[var(--ink)]">
+      {/* HERO SECTION: Freestanding 3D Elevation + Depth-Interlocked Headline */}
+      <section className="pt-26 sm:pt-32 pb-12 sm:pb-20 px-4 sm:px-8">
         <div className="max-w-6xl mx-auto">
-          {/* Top editorial intro */}
-          <div className="text-center max-w-3xl mx-auto mb-7 sm:mb-10">
-            <motion.div
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full gloss-pill mb-4"
-            >
-              <span className="w-2 h-2 rounded-full bg-[#0E0D0C] animate-pulse" />
-              <span className="font-mono-arch text-[10px] sm:text-[11px] uppercase tracking-[0.16em] text-[#272420]">
-                {PROFILE.statusBadge} · {PROFILE.location}
-              </span>
-            </motion.div>
+          <div className="text-center max-w-3xl mx-auto mb-6 sm:mb-8">
+            <p className="text-xs sm:text-sm font-medium tracking-tight text-[var(--tone-600)] mb-3">
+              {PROFILE.education.institution} · {PROFILE.education.level} · {PROFILE.location}
+            </p>
 
-            <motion.h1
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.08 }}
-              className="font-serif-display text-4xl sm:text-6xl lg:text-7xl font-medium tracking-[-0.02em] leading-[1.02] text-[#0E0D0C]"
-            >
-              Architecture built with{' '}
-              <span className="italic font-normal text-[#6C5846]">precision</span> &amp; warmth.
-            </motion.h1>
+            <InteractiveHeadline
+              text="Precision in form, light, and space."
+              as="h1"
+              className="text-4xl sm:text-6xl lg:text-[4.25rem] font-bold tracking-[-0.035em] leading-[1.02] text-[var(--ink)]"
+            />
 
-            <motion.p
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.16 }}
-              className="mt-4 text-sm sm:text-base text-[#574F47] leading-relaxed max-w-2xl mx-auto"
-            >
-              {PROFILE.fullName}, 300-level Architecture student at{' '}
-              <span className="text-[#0E0D0C] font-medium">{PROFILE.education.institution}</span>.
-              Residential design, 3D SketchUp modelling, AutoCAD working drawings, physical scale models, and GIS mapping.
-            </motion.p>
+            <p className="mt-4 text-sm sm:text-base text-[var(--ink-muted)] leading-relaxed max-w-2xl mx-auto">
+              {PROFILE.fullName}. Residential architecture, 3D SketchUp modelling, AutoCAD working drawings, physical scale models, and GIS environmental mapping.
+            </p>
 
-            {/* Primary Action Pills */}
-            <motion.div
-              initial={{ opacity: 0, y: 14 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.24 }}
-              className="mt-6 flex flex-wrap items-center justify-center gap-3"
-            >
-              <Link
-                to="/projects"
-                className="gloss-black-btn gloss-sheen inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs sm:text-sm font-medium text-[#F7F3EC] hover:opacity-95 transition"
-              >
-                <span>Explore {PROJECTS.length} Projects</span>
-                <ArrowUpRight className="w-4 h-4 text-[#D8C3A8]" />
-              </Link>
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-4">
+              <Magnetic strength={0.22}>
+                <Link
+                  to="/projects"
+                  className="gel-cobalt inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-xs sm:text-sm font-medium tracking-tight hover:scale-[1.02] transition-transform"
+                >
+                  <span>Explore {PROJECT_SUMMARIES.length} Projects</span>
+                  <ArrowUpRight weight="light" className="w-4 h-4" />
+                </Link>
+              </Magnetic>
 
-              <a
-                href={PROFILE.cvUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="gloss-pill gloss-sheen inline-flex items-center gap-2 px-6 py-3 rounded-full text-xs sm:text-sm font-medium text-[#0E0D0C] hover:bg-white transition"
-              >
-                <FileDown className="w-4 h-4 text-[#6C5846]" />
-                <span>Download CV</span>
-              </a>
-            </motion.div>
+              <Magnetic strength={0.22}>
+                <a
+                  href={PROFILE.cvUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="gel-surface inline-flex items-center gap-2 px-7 py-3.5 rounded-full text-xs sm:text-sm font-medium text-[var(--ink)] hover:text-[var(--tone-600)] transition-colors"
+                >
+                  <DownloadSimple weight="light" className="w-4 h-4" />
+                  <span>Download CV</span>
+                </a>
+              </Magnetic>
+            </div>
           </div>
 
-          {/* Animated Piece-by-Piece Elevation Art */}
-          <HeroElevationAssembly />
+          {/* Freestanding 3D Elevation (NO container, NO replay button, continuous build loop + sun slider) */}
+          <HeroElevationStage />
 
-          {/* Quick-Skim Executive Strip for Architecture Firms */}
-          <div className="mt-7 sm:mt-10 grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 max-w-5xl mx-auto">
+          {/* 3D Depth Stat Blocks — zero borders, tone + layered shadow only */}
+          <div className="mt-10 sm:mt-14 grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 max-w-5xl mx-auto">
             {[
-              { label: 'Portfolio Archive', value: `${PROJECTS.length} Projects`, sub: `${totalPlates} curated plates` },
+              { label: 'Portfolio Archive', value: `${PROJECT_SUMMARIES.length} Projects`, sub: `${totalPlates} curated plates` },
               { label: '3D Walkthroughs', value: `${totalVideos} Films`, sub: 'Mobile & desktop ready' },
               { label: 'Core Toolkit', value: 'CAD + 3D', sub: 'AutoCAD, SketchUp, Archicad, QGIS' },
               { label: 'Academic Standing', value: '300 Level', sub: 'Nile University of Nigeria' },
             ].map((stat) => (
-              <div
-                key={stat.label}
-                className="gloss-card rounded-2xl p-3.5 sm:p-4 flex flex-col justify-between"
-              >
-                <span className="font-mono-arch text-[10px] uppercase tracking-[0.15em] text-[#6C635A]">
+              <TiltCard3D key={stat.label} cursorMode="pointer" className="p-5 flex flex-col justify-between">
+                <span className="text-xs font-medium text-[var(--tone-600)] tracking-tight">
                   {stat.label}
                 </span>
-                <span className="mt-1.5 font-serif-display text-2xl sm:text-3xl font-semibold text-[#0E0D0C] leading-none">
+                <span className="mt-2 text-2xl sm:text-3xl font-bold tracking-[-0.03em] text-[var(--ink)] leading-none">
                   {stat.value}
                 </span>
-                <span className="mt-1 text-[11px] text-[#574F47]">{stat.sub}</span>
-              </div>
+                <span className="mt-1.5 text-xs text-[var(--ink-muted)]">{stat.sub}</span>
+              </TiltCard3D>
             ))}
           </div>
         </div>
       </section>
 
-      {/* IMAGE 3 INSPIRED: INTERACTIVE FANNED STUDIO DECK */}
+      {/* INTERACTIVE FANNED STUDIO DECK */}
       <FannedProjectDeck projects={highlightProjects} />
 
-      {/* RAPID-SKIM FULL PROJECT ARCHIVE (ALL 15 FOLDERS) */}
-      <section className="py-12 sm:py-20 px-4 sm:px-6">
+      {/* COMPLETE PROJECT ARCHIVE WITH TEXT-ONLY FILTER & FLIP RESHUFFLE */}
+      <section className="py-16 sm:py-24 px-4 sm:px-8">
         <div className="max-w-6xl mx-auto">
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4 mb-7 sm:mb-10">
+          <div className="flex flex-col md:flex-row md:items-end justify-between gap-5 mb-10 sm:mb-12">
             <div>
-              <p className="font-mono-arch text-[11px] uppercase tracking-[0.22em] text-[#6C635A] mb-1.5">
+              <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--tone-600)] mb-2">
                 Complete Project Index
               </p>
-              <h2 className="font-serif-display text-3xl sm:text-5xl font-medium text-[#0E0D0C] leading-tight">
-                Built for Fast Studio Review
-              </h2>
+              <InteractiveHeadline
+                text="Built for Fast Studio Review"
+                as="h2"
+                className="text-3xl sm:text-5xl font-bold tracking-[-0.03em] text-[var(--ink)] leading-tight"
+              />
             </div>
 
-            {/* Filter Pills (no visible scrollbar on mobile) */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+            {/* Text-only filter row: active state = weight & opacity only, ZERO pills */}
+            <div className="flex items-center gap-5 sm:gap-6 overflow-x-auto pb-1">
               {PROJECT_CATEGORIES.map((cat) => {
                 const active = selectedCategory === cat;
                 return (
                   <button
                     key={cat}
                     type="button"
-                    onClick={() => setSelectedCategory(cat)}
-                    className={`shrink-0 px-3.5 py-2 rounded-full text-xs font-medium transition cursor-pointer ${
+                    onClick={() => {
+                      hapticTap(6);
+                      setSelectedCategory(cat);
+                    }}
+                    className={`shrink-0 text-xs sm:text-sm tracking-tight transition-all cursor-pointer ${
                       active
-                        ? 'bg-[#0E0D0C] text-[#F7F3EC] shadow-md'
-                        : 'gloss-pill text-[#272420] hover:bg-white'
+                        ? 'font-bold text-[var(--tone-600)] opacity-100'
+                        : 'font-normal text-[var(--ink)] opacity-45 hover:opacity-85'
                     }`}
                   >
                     {cat}
@@ -164,217 +257,127 @@ export function HomePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {filteredProjects.map((project, idx) => (
-              <motion.div
-                key={project.slug}
-                initial={{ opacity: 0, y: 18 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: '-40px' }}
-                transition={{ duration: 0.4, delay: Math.min(idx * 0.04, 0.25) }}
-              >
-                <Link
-                  to={`/projects/${project.slug}`}
-                  className="group block gloss-card gloss-sheen rounded-[24px] p-3 transition-all duration-300 hover:-translate-y-1.5 hover:shadow-[0_26px_60px_-22px_rgba(14,13,12,0.25)]"
-                >
-                  {/* Adaptive matte frame so any aspect ratio fits cleanly */}
-                  <div className="relative aspect-[4/3] rounded-[18px] overflow-hidden bg-[#EADFD1]">
-                    <img
-                      src={project.cover.src}
-                      alt={project.title}
-                      loading="lazy"
-                      className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-[#0E0D0C]/55 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
-
-                    <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5">
-                      <span className="px-2.5 py-0.5 rounded-full bg-[#0E0D0C]/80 backdrop-blur-md text-[#F7F3EC] font-mono-arch text-[10px] tracking-wider">
-                        {project.code}
-                      </span>
-                      {project.video && (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F7F3EC]/90 text-[#0E0D0C] font-mono-arch text-[10px] font-medium">
-                          <Play className="w-2.5 h-2.5 fill-current" />
-                          3D Video
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-full bg-[#0E0D0C]/75 backdrop-blur-md text-[#F7F3EC] font-mono-arch text-[10px] flex items-center gap-1">
-                      <Layers className="w-3 h-3 text-[#D8C3A8]" />
-                      <span>{project.images.length}</span>
-                    </div>
-                  </div>
-
-                  <div className="pt-3.5 px-1.5 pb-1">
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <p className="font-mono-arch text-[10px] uppercase tracking-[0.14em] text-[#6C635A]">
-                          {project.category} · {project.year}
-                        </p>
-                        <h3 className="mt-0.5 font-serif-display text-xl sm:text-2xl font-semibold text-[#0E0D0C] leading-snug group-hover:text-[#574534] transition-colors">
-                          {project.title}
-                        </h3>
-                      </div>
-                      <span className="w-8 h-8 rounded-full bg-[#0E0D0C]/6 group-hover:bg-[#0E0D0C] group-hover:text-[#F7F3EC] flex items-center justify-center shrink-0 transition-colors">
-                        <ArrowUpRight className="w-4 h-4" />
-                      </span>
-                    </div>
-
-                    <p className="mt-1.5 text-xs text-[#574F47] line-clamp-2 leading-relaxed">
-                      {project.summary}
-                    </p>
-
-                    <div className="mt-3 flex flex-wrap gap-1.5">
-                      {project.tools.map((tool) => (
-                        <span
-                          key={tool}
-                          className="px-2.5 py-0.5 rounded-full bg-[#EADFD1]/85 text-[#272420] text-[10px] font-medium"
-                        >
-                          {tool}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
+          <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-7">
+            <AnimatePresence mode="popLayout">
+              {filteredProjects.map((project) => (
+                <ProjectArchiveCard key={project.slug} project={project} />
+              ))}
+            </AnimatePresence>
+          </motion.div>
         </div>
       </section>
 
-      {/* STUDIO WORKSPACE & CV PROFILE (FEATURING IMAGE 4 INSPIRED CURVED DESK ART) */}
-      <section className="py-12 sm:py-20 px-4 sm:px-6">
+      {/* STUDIO WORKSPACE & CV PROFILE */}
+      <section className="py-16 sm:py-24 px-4 sm:px-8">
         <div className="max-w-6xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
-            {/* Left: Custom Blueprint-Blue & Cream Curved Ultrawide Studio Desk Art */}
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 sm:gap-10 items-center">
+            {/* Left: Cobalt Monotone Curved Ultrawide Studio Desk Art */}
             <div className="lg:col-span-6">
-              <div className="relative rounded-[28px] overflow-hidden border border-[#0E0D0C]/10 shadow-[0_28px_80px_-28px_rgba(19,71,176,0.32)] group">
-                <img
-                  src="/art/studio-desk.jpg"
-                  alt="Architect studio desk with curved ultrawide monitor showing 3D building wireframe and CAD floorplan"
-                  loading="lazy"
-                  className="w-full h-auto block transition-transform duration-700 group-hover:scale-[1.03]"
-                />
-                <div className="absolute bottom-3 left-3 right-3 sm:bottom-4 sm:left-4 sm:right-4 gloss-dark rounded-2xl px-4 py-3 flex items-center justify-between gap-2 text-[#F7F3EC]">
-                  <div>
-                    <p className="font-mono-arch text-[10px] uppercase tracking-[0.18em] text-[#D8C3A8]">
-                      Digital Drafting Desk
-                    </p>
-                    <p className="text-xs sm:text-sm font-medium">
-                      AutoCAD 2D Plans + SketchUp 3D Massing
-                    </p>
-                  </div>
-                  <Compass className="w-5 h-5 text-[#D8C3A8] shrink-0" />
-                </div>
+              <div className="relative rounded-[32px] overflow-hidden shadow-[0_34px_84px_-26px_rgba(11,79,219,0.38)] group">
+                <picture>
+                  <source srcSet="/art/studio-desk.avif" type="image/avif" />
+                  <source srcSet="/art/studio-desk.webp" type="image/webp" />
+                  <img
+                    src="/art/studio-desk.jpg"
+                    alt="Cobalt monotone isometric studio desk with curved ultrawide architectural monitor"
+                    width={1200}
+                    height={675}
+                    loading="lazy"
+                    className="w-full h-auto block transition-transform duration-700 group-hover:scale-[1.03]"
+                  />
+                </picture>
+                <div aria-hidden="true" className="scene-grain absolute inset-0" />
               </div>
             </div>
 
-            {/* Right: Skimmable CV Profile & Interactive Technical Skills */}
-            <div className="lg:col-span-6 space-y-5">
+            {/* Right: Profile & Interactive Technical Stack */}
+            <div className="lg:col-span-6 space-y-6">
               <div>
-                <p className="font-mono-arch text-[11px] uppercase tracking-[0.22em] text-[#6C635A] mb-1.5">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-[var(--tone-600)] mb-2">
                   Architect Profile
                 </p>
-                <h2 className="font-serif-display text-3xl sm:text-5xl font-medium text-[#0E0D0C] leading-tight">
+                <h2 className="text-3xl sm:text-5xl font-bold tracking-[-0.03em] text-[var(--ink)] leading-tight">
                   {PROFILE.fullName}
                 </h2>
-                <p className="mt-3 text-sm text-[#574F47] leading-relaxed">
+                <p className="mt-3 text-sm sm:text-base text-[var(--ink-muted)] leading-relaxed">
                   {PROFILE.bio}
                 </p>
               </div>
 
-              {/* Education & Location badges */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div className="gloss-card rounded-2xl p-3.5 flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#0E0D0C] text-[#F7F3EC] flex items-center justify-center shrink-0">
-                    <GraduationCap className="w-4 h-4" />
-                  </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="gel-surface rounded-[24px] p-4 flex items-start gap-3.5">
+                  <GraduationCap weight="light" className="w-6 h-6 text-[var(--tone-600)] shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-xs font-semibold text-[#0E0D0C]">
+                    <p className="text-sm font-bold tracking-tight text-[var(--ink)]">
                       {PROFILE.education.institution}
                     </p>
-                    <p className="text-[11px] text-[#574F47]">
+                    <p className="text-xs text-[var(--ink-muted)] mt-0.5">
                       {PROFILE.education.degree}
                     </p>
-                    <p className="font-mono-arch text-[10px] text-[#6C635A] mt-0.5">
+                    <p className="text-xs text-[var(--tone-600)] font-medium mt-1">
                       {PROFILE.education.level} · {PROFILE.education.period}
                     </p>
                   </div>
                 </div>
 
-                <div className="gloss-card rounded-2xl p-3.5 flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-xl bg-[#EADFD1] text-[#0E0D0C] flex items-center justify-center shrink-0">
-                    <MapPin className="w-4 h-4" />
-                  </div>
+                <div className="gel-surface rounded-[24px] p-4 flex items-start gap-3.5">
+                  <MapPin weight="light" className="w-6 h-6 text-[var(--tone-600)] shrink-0 mt-0.5" />
                   <div>
-                    <p className="text-xs font-semibold text-[#0E0D0C]">
-                      SIWES Availability
+                    <p className="text-sm font-bold tracking-tight text-[var(--ink)]">
+                      SIWES Placement
                     </p>
-                    <p className="text-[11px] text-[#574F47]">
+                    <p className="text-xs text-[var(--ink-muted)] mt-0.5">
                       Based in {PROFILE.location}
                     </p>
-                    <p className="font-mono-arch text-[10px] text-[#6C635A] mt-0.5">
-                      Site + Studio Ready
+                    <p className="text-xs text-[var(--tone-600)] font-medium mt-1">
+                      Studio &amp; Site Ready
                     </p>
                   </div>
                 </div>
               </div>
 
-              {/* Interactive Software Proficiency Selector */}
-              <div className="gloss-card rounded-3xl p-4 sm:p-5 space-y-3.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-mono-arch text-[10px] uppercase tracking-[0.18em] text-[#6C635A]">
-                    Technical Software Stack
-                  </span>
-                  <span className="text-[11px] text-[#6C5846] font-medium">
-                    Tap to inspect
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {/* Interactive Software Stack — text tabs, zero borders */}
+              <div className="gel-surface rounded-[28px] p-5 sm:p-6 space-y-4">
+                <div className="flex items-center gap-5 sm:gap-7 overflow-x-auto">
                   {PROFILE.technicalSkills.map((skill, idx) => (
                     <button
                       key={skill.name}
                       type="button"
-                      onClick={() => setActiveSkill(idx)}
-                      className={`px-3 py-2 rounded-xl text-left transition cursor-pointer ${
+                      onClick={() => {
+                        hapticTap(6);
+                        setActiveSkill(idx);
+                      }}
+                      className={`shrink-0 text-sm tracking-tight transition-all cursor-pointer ${
                         activeSkill === idx
-                          ? 'bg-[#0E0D0C] text-[#F7F3EC] shadow-md'
-                          : 'bg-[#EADFD1]/65 text-[#272420] hover:bg-[#EADFD1]'
+                          ? 'font-bold text-[var(--tone-600)] opacity-100'
+                          : 'font-normal text-[var(--ink)] opacity-45 hover:opacity-85'
                       }`}
                     >
-                      <span className="block text-xs font-semibold">{skill.name}</span>
-                      <span
-                        className={`block font-mono-arch text-[9px] mt-0.5 ${
-                          activeSkill === idx ? 'text-[#D8C3A8]' : 'text-[#6C635A]'
-                        }`}
-                      >
-                        {skill.level.split(' ')[0]}
-                      </span>
+                      {skill.name}
                     </button>
                   ))}
                 </div>
 
                 {PROFILE.technicalSkills[activeSkill] && (
-                  <div className="pt-1 space-y-2">
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-semibold text-[#0E0D0C]">
-                        {PROFILE.technicalSkills[activeSkill].name} ({PROFILE.technicalSkills[activeSkill].level})
+                  <div className="space-y-2.5">
+                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                      <span className="font-medium text-[var(--ink)]">
+                        {PROFILE.technicalSkills[activeSkill].level}
                       </span>
-                      <span className="font-mono-arch text-[11px] text-[#6C635A]">
+                      <span className="font-bold text-[var(--tone-600)] tabular-nums">
                         {PROFILE.technicalSkills[activeSkill].percent}%
                       </span>
                     </div>
-                    <div className="h-2 rounded-full bg-[#EADFD1] overflow-hidden">
+                    <div className="h-2 rounded-full bg-[var(--tone-100)] overflow-hidden">
                       <motion.div
                         key={PROFILE.technicalSkills[activeSkill].name}
                         initial={{ width: 0 }}
                         animate={{ width: `${PROFILE.technicalSkills[activeSkill].percent}%` }}
-                        transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-                        className="h-full rounded-full bg-gradient-to-r from-[#0E0D0C] via-[#4A3E35] to-[#C6A88C]"
+                        transition={{ type: 'spring', stiffness: 180, damping: 24 }}
+                        className="h-full rounded-full bg-[var(--tone-600)]"
                       />
                     </div>
-                    <p className="text-xs text-[#574F47] leading-relaxed">
+                    <p className="text-xs sm:text-sm text-[var(--ink-muted)] leading-relaxed">
                       {PROFILE.technicalSkills[activeSkill].detail}
                     </p>
                   </div>
@@ -383,20 +386,18 @@ export function HomePage() {
             </div>
           </div>
 
-          {/* Practical Training & Areas of Interest Cards */}
-          <div className="mt-8 sm:mt-12 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-5">
+          {/* Practical Training & Areas of Interest — borderless glossy depth */}
+          <div className="mt-10 sm:mt-14 grid grid-cols-1 md:grid-cols-3 gap-5 sm:gap-6">
             {PROFILE.training.map((item) => (
-              <div key={item.title} className="gloss-card rounded-3xl p-5 space-y-3">
-                <span className="font-mono-arch text-[10px] uppercase tracking-[0.15em] text-[#6C635A]">
-                  {item.meta}
-                </span>
-                <h3 className="font-serif-display text-2xl font-semibold text-[#0E0D0C] leading-snug">
+              <div key={item.title} className="gel-surface rounded-[28px] p-6 space-y-3.5">
+                <p className="text-xs font-medium text-[var(--tone-600)]">{item.meta}</p>
+                <h3 className="text-xl sm:text-2xl font-bold tracking-[-0.03em] text-[var(--ink)] leading-snug">
                   {item.title}
                 </h3>
-                <ul className="space-y-2">
+                <ul className="space-y-2.5">
                   {item.points.map((pt) => (
-                    <li key={pt} className="flex items-start gap-2 text-xs text-[#574F47] leading-relaxed">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#C6A88C] shrink-0 mt-0.5" />
+                    <li key={pt} className="flex items-start gap-2.5 text-xs sm:text-sm text-[var(--ink-muted)] leading-relaxed">
+                      <Check weight="light" className="w-4 h-4 text-[var(--tone-600)] shrink-0 mt-0.5" />
                       <span>{pt}</span>
                     </li>
                   ))}
@@ -404,48 +405,28 @@ export function HomePage() {
               </div>
             ))}
 
-            <div className="gloss-card rounded-3xl p-5 flex flex-col justify-between space-y-4">
+            <div className="gel-surface rounded-[28px] p-6 flex flex-col justify-between space-y-5">
               <div>
-                <span className="font-mono-arch text-[10px] uppercase tracking-[0.15em] text-[#6C635A] flex items-center gap-1.5">
-                  <Sparkles className="w-3 h-3 text-[#C6A88C]" />
-                  <span>Focus &amp; Strengths</span>
-                </span>
-                <h3 className="mt-2 font-serif-display text-2xl font-semibold text-[#0E0D0C]">
+                <p className="text-xs font-medium text-[var(--tone-600)]">Focus Areas</p>
+                <h3 className="mt-2 text-xl sm:text-2xl font-bold tracking-[-0.03em] text-[var(--ink)]">
                   Areas of Interest
                 </h3>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {PROFILE.interests.map((interest) => (
-                    <span
-                      key={interest}
-                      className="px-3 py-1 rounded-full bg-[#0E0D0C] text-[#F7F3EC] text-[11px] font-medium"
-                    >
-                      {interest}
-                    </span>
-                  ))}
-                </div>
+                <p className="mt-3 text-sm text-[var(--ink)] leading-relaxed">
+                  {PROFILE.interests.join(' · ')}
+                </p>
               </div>
 
-              <div className="pt-3 border-t border-[#0E0D0C]/8">
-                <p className="font-mono-arch text-[10px] uppercase tracking-[0.14em] text-[#6C635A] mb-2">
-                  Studio Strengths
+              <div>
+                <p className="text-xs font-medium text-[var(--tone-600)] mb-2">Studio Strengths</p>
+                <p className="text-xs sm:text-sm text-[var(--ink-muted)] leading-relaxed">
+                  {PROFILE.softSkills.join(' · ')}
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  {PROFILE.softSkills.map((s) => (
-                    <span
-                      key={s}
-                      className="px-2.5 py-1 rounded-full bg-[#EADFD1]/90 text-[#272420] text-[11px]"
-                    >
-                      {s}
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* IMAGE 2 INSPIRED: ANIMATED PIXEL PAVILION OBSIDIAN FOOTER */}
       <StudioFooter />
     </div>
   );
